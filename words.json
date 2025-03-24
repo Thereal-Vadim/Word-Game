@@ -1,18 +1,23 @@
 import json
 import random
+import os
 from kivy.app import App
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
 from kivy.uix.spinner import Spinner
-from kivy.properties import NumericProperty, StringProperty
+from kivy.uix.togglebutton import ToggleButton
+from kivy.properties import NumericProperty, StringProperty, BooleanProperty
 from kivy.clock import Clock
+from kivy.graphics import Color, Rectangle
 
 # Загрузка базы слов
 with open("words.json", "r", encoding="utf-8") as f:
     WORD_DATABASE = json.load(f)
 
+# Путь для сохранения прогресса
+PROGRESS_FILE = "progress.json"
 
 class WordGame(BoxLayout):
     score = NumericProperty(0)
@@ -21,6 +26,7 @@ class WordGame(BoxLayout):
     definition = StringProperty("")
     message = StringProperty("")
     correct_word = StringProperty("")
+    dark_theme = BooleanProperty(False)
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -29,16 +35,24 @@ class WordGame(BoxLayout):
         self.spacing = 10
         self.target_lang = "en"
         self.difficulty = "easy"
+        self.timer_duration = 30  # Начальное значение таймера
         self.word = ""
         self.timer_event = None
         self.hint_level = 0
+        self.load_progress()
 
-        # Выбор языка и сложности
+        # Обновление фона
+        with self.canvas.before:
+            self.bg_color = Color(1, 1, 1, 1)  # Светлый фон по умолчанию
+            self.bg_rect = Rectangle(pos=self.pos, size=self.size)
+        self.bind(pos=self.update_bg, size=self.update_bg, dark_theme=self.update_theme)
+
+        # Верхняя панель: язык, сложность, таймер, тема
         top_layout = BoxLayout(size_hint=(1, 0.15), spacing=10)
         self.lang_spinner = Spinner(
-            text="Choose Language",
+            text="Language",
             values=("English (en)", "Русский (ru)", "Deutsch (de)", "Français (fr)"),
-            size_hint=(0.5, 1),
+            size_hint=(0.3, 1),
             background_color=(0.2, 0.6, 1, 1)
         )
         self.lang_spinner.bind(text=self.start_game_with_lang)
@@ -47,11 +61,28 @@ class WordGame(BoxLayout):
         self.diff_spinner = Spinner(
             text="Difficulty",
             values=("Easy", "Medium", "Hard"),
-            size_hint=(0.5, 1),
+            size_hint=(0.3, 1),
             background_color=(0.2, 0.6, 1, 1)
         )
         self.diff_spinner.bind(text=self.set_difficulty)
         top_layout.add_widget(self.diff_spinner)
+
+        self.timer_spinner = Spinner(
+            text="Time",
+            values=("15", "30", "60"),
+            size_hint=(0.2, 1),
+            background_color=(0.2, 0.6, 1, 1)
+        )
+        self.timer_spinner.bind(text=self.set_timer_duration)
+        top_layout.add_widget(self.timer_spinner)
+
+        self.theme_toggle = ToggleButton(
+            text="Dark",
+            size_hint=(0.2, 1),
+            background_color=(0.8, 0.8, 0.8, 1)
+        )
+        self.theme_toggle.bind(state=self.toggle_theme)
+        top_layout.add_widget(self.theme_toggle)
         self.add_widget(top_layout)
 
         # Определение слова
@@ -83,7 +114,9 @@ class WordGame(BoxLayout):
             text="Check Answer",
             size_hint=(0.6, 1),
             background_color=(0, 1, 0, 1),
-            color=(1, 1, 1, 1)
+            color=(1, 1, 1, 1),
+            background_normal="",
+            background_down=""
         )
         self.check_button.bind(on_press=self.check_answer)
         button_layout.add_widget(self.check_button)
@@ -92,7 +125,9 @@ class WordGame(BoxLayout):
             text="Hint",
             size_hint=(0.4, 1),
             background_color=(1, 0.5, 0, 1),
-            color=(1, 1, 1, 1)
+            color=(1, 1, 1, 1),
+            background_normal="",
+            background_down=""
         )
         self.hint_button.bind(on_press=self.show_hint)
         button_layout.add_widget(self.hint_button)
@@ -111,18 +146,54 @@ class WordGame(BoxLayout):
 
         # Счет, попытки и таймер
         self.status_label = Label(
-            text="Score: 0 | Attempts: 3 | Time: 30",
+            text=f"Score: {self.score} | Attempts: 3 | Time: 30",
             size_hint=(1, 0.1),
-            font_size=16
+            font_size=16,
+            color=(0, 0, 0, 1)
         )
         self.add_widget(self.status_label)
+
+    def update_bg(self, *args):
+        """Обновляет фон при изменении размера или позиции."""
+        self.bg_rect.pos = self.pos
+        self.bg_rect.size = self.size
+
+    def update_theme(self, *args):
+        """Обновляет тему."""
+        if self.dark_theme:
+            self.bg_color.rgba = (0.1, 0.1, 0.1, 1)  # Темный фон
+            self.definition_label.color = (1, 1, 1, 1)
+            self.status_label.color = (1, 1, 1, 1)
+            self.answer_input.background_color = (0.3, 0.3, 0.3, 1)
+            self.answer_input.foreground_color = (1, 1, 1, 1)
+        else:
+            self.bg_color.rgba = (1, 1, 1, 1)  # Светлый фон
+            self.definition_label.color = (0, 0, 0, 1)
+            self.status_label.color = (0, 0, 0, 1)
+            self.answer_input.background_color = (0.9, 0.9, 0.9, 1)
+            self.answer_input.foreground_color = (0, 0, 0, 1)
+
+    def toggle_theme(self, instance, state):
+        """Переключает тему."""
+        self.dark_theme = (state == "down")
+
+    def load_progress(self):
+        """Загружает сохраненный прогресс."""
+        if os.path.exists(PROGRESS_FILE):
+            with open(PROGRESS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                self.score = data.get("score", 0)
+
+    def save_progress(self):
+        """Сохраняет прогресс."""
+        with open(PROGRESS_FILE, "w", encoding="utf-8") as f:
+            json.dump({"score": self.score}, f)
 
     def get_random_word(self):
         """Получает случайное слово из локальной базы."""
         suitable_words = [w for w in WORD_DATABASE if w["difficulty"] == self.difficulty]
         if not suitable_words:
-            return {"word": "error", "definition": "No words for this difficulty!",
-                    "translations": {"ru": "ошибка", "de": "Fehler", "fr": "erreur"}}
+            return {"word": "error", "definition": "No words for this difficulty!", "translations": {"ru": "ошибка", "de": "Fehler", "fr": "erreur"}}
         return random.choice(suitable_words)
 
     def start_game_with_lang(self, spinner, text):
@@ -140,17 +211,21 @@ class WordGame(BoxLayout):
         self.difficulty = difficulty_map.get(text, "easy")
         self.new_word()
 
+    def set_timer_duration(self, spinner, text):
+        """Устанавливает длительность таймера."""
+        self.timer_duration = int(text)
+        self.time_left = self.timer_duration
+        self.update_status()
+
     def new_word(self):
         """Загружает новое слово и запускает таймер."""
         self.attempts = 3
-        self.time_left = 30
+        self.time_left = self.timer_duration
         self.hint_level = 0
         word_data = self.get_random_word()
         self.word = word_data["word"]
-        self.correct_word = word_data["translations"].get(self.target_lang,
-                                                          self.word) if self.target_lang != "en" else self.word
-        self.definition = word_data["definition"] if self.target_lang == "en" else self.translate_definition(
-            word_data["definition"])
+        self.correct_word = word_data["translations"].get(self.target_lang, self.word) if self.target_lang != "en" else self.word
+        self.definition = word_data["definition"]  # Оставляем на английском, можно перевести позже
         self.definition_label.text = self.definition
         self.message_label.text = ""
         self.answer_input.text = ""
@@ -161,11 +236,6 @@ class WordGame(BoxLayout):
         if self.timer_event:
             self.timer_event.cancel()
         self.timer_event = Clock.schedule_interval(self.update_timer, 1)
-
-    def translate_definition(self, definition):
-        """Переводит определение (заглушка, так как переводы уже в базе)."""
-        # Если нужно больше языков, можно добавить перевод через внешний сервис позже
-        return definition  # Пока оставляем на английском, так как база небольшая
 
     def update_timer(self, dt):
         """Обновляет таймер."""
@@ -228,6 +298,7 @@ class WordGame(BoxLayout):
             self.check_button.bind(on_press=lambda x: self.new_word())
             self.hint_button.disabled = True
             self.timer_event.cancel()
+            self.save_progress()
         else:
             self.attempts -= 1
             if self.attempts > 0:
@@ -238,7 +309,7 @@ class WordGame(BoxLayout):
                 self.check_button.bind(on_press=lambda x: self.new_word())
                 self.hint_button.disabled = True
                 self.timer_event.cancel()
-
+        
         self.update_status()
 
     def update_status(self):
