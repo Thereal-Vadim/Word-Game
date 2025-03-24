@@ -9,18 +9,18 @@ from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
 from kivy.core.window import Window
-from kivy.config import Config
+from kivy.core.text import LabelBase
 import logging
 
-# Настройка логирования для отладки
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-# Установка белого фона
 Window.clearcolor = (1, 1, 1, 1)
 
 # Установка разрешения iPhone 14 Pro напрямую
 Window.size = (390, 844)
+
+LabelBase.register(name='SF-Pro.ttf', fn_regular='SF-Pro.ttf')
 
 # Загрузка базы слов
 try:
@@ -34,7 +34,6 @@ except json.JSONDecodeError:
     logger.error("Ошибка в структуре words.json. Проверьте синтаксис.")
     exit(1)
 
-# Путь для сохранения прогресса
 PROGRESS_FILE = "progress.json"
 
 
