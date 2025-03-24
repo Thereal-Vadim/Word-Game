@@ -1,0 +1,12 @@
+{
+    "score": 1,
+    "current_cefr_level": "A1",
+    "current_sub_level": 1,
+    "completed_words": {
+        "A1": {
+            "1": [
+                "dog"
+            ]
+        }
+    }
+}
