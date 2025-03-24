@@ -1,0 +1,14 @@
+#:kivy 2.3.1
+
+<Button>:
+    background_normal: ''
+    background_color: [0.2, 0.4, 0.8, 0.9]  # Мягкий синий
+    color: 1, 1, 1, 1  # Белый текст
+
+<TextInput>:
+    background_normal: ''
+    background_color: 0.9, 0.9, 0.9, 0.9  # Светло-серый фон
+
+<Button>:
+    # Отдельный стиль для заблокированных кнопок на карте
+    background_color: [0.8, 0.8, 0.8, 0.9] if self.disabled else [0.2, 0.4, 0.8, 0.9]
