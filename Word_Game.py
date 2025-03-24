@@ -2,248 +2,259 @@ import json
 import random
 import os
 from kivy.app import App
+from kivy.uix.screenmanager import ScreenManager, Screen
 from kivy.uix.boxlayout import BoxLayout
+from kivy.uix.gridlayout import GridLayout
+from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
-from kivy.uix.button import Button
-from kivy.uix.spinner import Spinner
-from kivy.properties import NumericProperty, StringProperty
-from kivy.clock import Clock
+from kivy.core.window import Window
+from kivy.config import Config
+import logging
+
+# Настройка логирования для отладки
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
+# Установка белого фона
+Window.clearcolor = (1, 1, 1, 1)
+
+# Установка разрешения iPhone 14 Pro напрямую
+Window.size = (390, 844)
 
 # Загрузка базы слов
-with open("words.json", "r", encoding="utf-8") as f:
-    WORD_DATABASE = json.load(f)
+try:
+    with open("words.json", "r", encoding="utf-8") as f:
+        WORD_DATABASE = json.load(f)
+    logger.info("База слов успешно загружена")
+except FileNotFoundError:
+    logger.error("Файл words.json не найден. Создайте его с корректной структурой.")
+    exit(1)
+except json.JSONDecodeError:
+    logger.error("Ошибка в структуре words.json. Проверьте синтаксис.")
+    exit(1)
 
 # Путь для сохранения прогресса
 PROGRESS_FILE = "progress.json"
 
-class WordGame(BoxLayout):
-    score = NumericProperty(0)
-    attempts = NumericProperty(3)
-    time_left = NumericProperty(30)
-    definition = StringProperty("")
-    message = StringProperty("")
 
+class MainMenuScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.orientation = "vertical"
-        self.padding = 20
-        self.spacing = 10
-        self.target_lang = "en"
+        logger.debug("Инициализация MainMenuScreen")
+        self.layout = BoxLayout(orientation="vertical", padding=50, spacing=20)
+        self.layout.add_widget(Button(text="Играть", font_size=24, background_color=(0.2, 0.6, 1, 1),
+                                      color=(1, 1, 1, 1), size_hint=(0.8, 0.2), pos_hint={'center_x': 0.5},
+                                      on_press=self.go_to_map))
+        self.layout.add_widget(Button(text="Словарь", font_size=24, background_color=(0.2, 0.6, 1, 1),
+                                      color=(1, 1, 1, 1), size_hint=(0.8, 0.2), pos_hint={'center_x': 0.5},
+                                      disabled=True))
+        self.layout.add_widget(Button(text="Настройки", font_size=24, background_color=(0.2, 0.6, 1, 1),
+                                      color=(1, 1, 1, 1), size_hint=(0.8, 0.2), pos_hint={'center_x': 0.5},
+                                      disabled=True))
+        self.add_widget(self.layout)
+
+    def go_to_map(self, *args):
+        logger.debug("Переход на экран карты")
+        self.manager.current = "map"
+
+
+class MapScreen(Screen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        logger.debug("Инициализация MapScreen")
+        self.layout = BoxLayout(orientation="vertical", padding=20, spacing=20)
+        self.layout.add_widget(Label(text="Карта уровней", font_size=32, color=(0, 0, 0, 1)))
+        self.map_layout = GridLayout(cols=5, spacing=10, size_hint=(1, 0.8))
+        self.layout.add_widget(self.map_layout)
+        self.layout.add_widget(Button(text="Назад", font_size=20, size_hint=(1, 0.1),
+                                      background_color=(0.2, 0.6, 1, 1), color=(1, 1, 1, 1),
+                                      on_press=self.go_back))
+        self.add_widget(self.layout)
         self.current_cefr_level = "A1"
-        self.current_sub_level = 1
-        self.timer_duration = 30
-        self.word = ""
-        self.correct_word = ""
-        self.current_theme = "Not set yet"  # Начальное значение темы
-        self.timer_event = None
-        self.completed_words = {}  # {cefr_level: {sub_level: [word1, word2, ...]}}
-
-        # Верхняя панель
-        top_layout = BoxLayout(size_hint=(1, 0.15), spacing=10)
-        self.lang_spinner = Spinner(
-            text="Language",
-            values=("English (en)", "Русский (ru)", "Deutsch (de)", "Français (fr)"),
-            size_hint=(0.3, 1)
-        )
-        self.lang_spinner.bind(text=self.start_game_with_lang)
-        top_layout.add_widget(self.lang_spinner)
-
-        self.cefr_spinner = Spinner(
-            text="CEFR Level",
-            values=("A1", "A2", "B1", "B2", "C1"),
-            size_hint=(0.3, 1)
-        )
-        self.cefr_spinner.bind(text=self.set_cefr_level)
-        top_layout.add_widget(self.cefr_spinner)
-
-        self.sub_level_label = Label(
-            text=f"Sub-Level: {self.current_sub_level} (Theme: {self.current_theme})",
-            size_hint=(0.4, 1)
-        )
-        top_layout.add_widget(self.sub_level_label)
-        self.add_widget(top_layout)
-
-        # Определение слова
-        self.definition_label = Label(
-            text="Definition will appear here",
-            size_hint=(1, 0.3),
-            halign="center",
-            valign="middle",
-            text_size=(self.width - 40, None)
-        )
-        self.add_widget(self.definition_label)
-
-        # Поле ввода
-        self.answer_input = TextInput(
-            hint_text="Enter your answer",
-            size_hint=(1, 0.15),
-            multiline=False
-        )
-        self.answer_input.bind(on_text_validate=self.check_answer)
-        self.add_widget(self.answer_input)
-
-        # Кнопка проверки
-        self.check_button = Button(
-            text="Check Answer",
-            size_hint=(1, 0.15)
-        )
-        self.check_button.bind(on_press=self.check_answer)
-        self.add_widget(self.check_button)
-
-        # Сообщение
-        self.message_label = Label(
-            text="",
-            size_hint=(1, 0.15),
-            halign="center",
-            valign="middle",
-            text_size=(self.width - 40, None)
-        )
-        self.add_widget(self.message_label)
-
-        # Статус
-        self.status_label = Label(
-            text=f"Score: {self.score} | Attempts: 3 | Time: 30",
-            size_hint=(1, 0.1)
-        )
-        self.add_widget(self.status_label)
-
-        # Загрузка прогресса и начало игры после создания интерфейса
-        self.load_progress()
-        self.new_word()
+        self.completed_sub_levels = self.load_progress().get("completed_sub_levels", {})
+        self.update_map()
 
     def load_progress(self):
-        """Загружает сохранённый прогресс."""
-        if os.path.exists(PROGRESS_FILE):
-            with open(PROGRESS_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                self.score = data.get("score", 0)
-                self.current_cefr_level = data.get("current_cefr_level", "A1")
-                self.current_sub_level = data.get("current_sub_level", 1)
-                self.completed_words = data.get("completed_words", {})
-                self.update_sub_level_label()
+        try:
+            if os.path.exists(PROGRESS_FILE):
+                with open(PROGRESS_FILE, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    logger.info("Прогресс успешно загружен")
+                    return data
+        except (json.JSONDecodeError, FileNotFoundError):
+            logger.warning("Ошибка загрузки прогресса, используется стандартный")
+        return {"current_cefr_level": "A1", "completed_sub_levels": {}}
 
     def save_progress(self):
-        """Сохраняет прогресс."""
-        with open(PROGRESS_FILE, "w", encoding="utf-8") as f:
-            json.dump({
-                "score": self.score,
-                "current_cefr_level": self.current_cefr_level,
-                "current_sub_level": self.current_sub_level,
-                "completed_words": self.completed_words
-            }, f, ensure_ascii=False, indent=4)
+        try:
+            with open(PROGRESS_FILE, "w", encoding="utf-8") as f:
+                json.dump({
+                    "current_cefr_level": self.current_cefr_level,
+                    "completed_sub_levels": self.completed_sub_levels
+                }, f, ensure_ascii=False, indent=4)
+            logger.info("Прогресс сохранён")
+        except Exception as e:
+            logger.error(f"Ошибка сохранения прогресса: {e}")
 
-    def get_random_word(self):
-        """Получает случайное слово из текущей группы, которое ещё не завершено."""
-        cefr_level = self.current_cefr_level
-        sub_level = str(self.current_sub_level)
-        if cefr_level not in WORD_DATABASE or sub_level not in WORD_DATABASE[cefr_level]:
-            return {"word": "error", "definitions": {"en": "No words for this level!", "ru": "Нет слов для этого уровня!", "de": "Keine Wörter für diese Stufe!", "fr": "Pas de mots pour ce niveau!"}, "translations": {"ru": "ошибка", "de": "Fehler", "fr": "erreur"}}
+    def update_map(self):
+        self.map_layout.clear_widgets()
+        for sub_level in range(1, 11):
+            try:
+                stars = self.completed_sub_levels.get(self.current_cefr_level, {}).get(str(sub_level), 0)
+                btn_text = f"{sub_level}\n{'★' * stars}{'☆' * (3 - stars)}" if stars > 0 else str(sub_level)
+                is_locked = not self.is_sub_level_unlocked(sub_level)
+                btn = Button(text=btn_text, font_size=20,
+                             background_color=(0.8, 0.8, 0.8, 1) if is_locked else (0.2, 0.6, 1, 1),
+                             color=(1, 1, 1, 1), disabled=is_locked,
+                             on_press=lambda x, sl=sub_level: self.start_game(sl))
+                self.map_layout.add_widget(btn)
+            except Exception as e:
+                logger.error(f"Ошибка при обновлении карты для подуровня {sub_level}: {e}")
 
-        self.current_theme = WORD_DATABASE[cefr_level][sub_level]["theme"]
-        self.update_sub_level_label()
-        words = WORD_DATABASE[cefr_level][sub_level]["words"]
-        completed = self.completed_words.get(cefr_level, {}).get(sub_level, [])
-        available_words = [w for w in words if w["word"] not in completed]
+    def is_sub_level_unlocked(self, sub_level):
+        if sub_level == 1:
+            return True
+        prev_sub_level = sub_level - 1
+        return str(prev_sub_level) in self.completed_sub_levels.get(self.current_cefr_level, {})
 
-        if not available_words:
-            self.move_to_next_sub_level()
-            return self.get_random_word()
+    def start_game(self, sub_level):
+        logger.debug(f"Запуск игры для подуровня {sub_level}")
+        self.manager.get_screen("game").setup_game(self.current_cefr_level, sub_level)
+        self.manager.current = "game"
 
-        return random.choice(available_words)
+    def go_back(self, *args):
+        logger.debug("Возврат на главное меню")
+        self.manager.current = "main_menu"
 
-    def update_sub_level_label(self):
-        """Обновляет метку подуровня с темой."""
-        self.sub_level_label.text = f"Sub-Level: {self.current_sub_level} (Theme: {self.current_theme})"
 
-    def move_to_next_sub_level(self):
-        """Переходит к следующему подуровню."""
-        self.current_sub_level += 1
-        if self.current_sub_level > 30:  # Полный уровень A1 до 30 подуровней
-            self.current_sub_level = 1
-            self.current_cefr_level = "A2"  # Пример перехода
-            self.cefr_spinner.text = self.current_cefr_level
-            self.message_label.text = "Congratulations! You've completed A1 in this example!"
-        self.update_sub_level_label()
-        self.save_progress()
+class GameScreen(Screen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        logger.debug("Инициализация GameScreen")
+        self.layout = BoxLayout(orientation="vertical", padding=20, spacing=20)
+        self.progress_label = Label(text="Слово 0/0", font_size=24, color=(0, 0, 0, 1))
+        self.layout.add_widget(self.progress_label)
 
-    def start_game_with_lang(self, spinner, text):
-        """Начинает игру с выбранным языком."""
-        lang_map = {"English (en)": "en", "Русский (ru)": "ru", "Deutsch (de)": "de", "Français (fr)": "fr"}
-        self.target_lang = lang_map.get(text, "en")
-        self.new_word()
+        self.definition_label = Label(text="", font_size=32, color=(0, 0, 0, 1), halign="center",
+                                      text_size=(350, None))
+        self.layout.add_widget(self.definition_label)
 
-    def set_cefr_level(self, spinner, text):
-        """Устанавливает уровень CEFR."""
-        self.current_cefr_level = text
+        self.input_layout = BoxLayout(size_hint=(1, 0.2), spacing=10)
+        self.answer_input = TextInput(hint_text="Введи слово", font_size=20, multiline=False)
+        self.check_button = Button(text="Проверить", font_size=20, background_color=(0.2, 0.6, 1, 1),
+                                   color=(1, 1, 1, 1))
+        self.input_layout.add_widget(self.answer_input)
+        self.input_layout.add_widget(self.check_button)
+        self.layout.add_widget(self.input_layout)
+
+        self.feedback_label = Label(text="", font_size=24, color=(0, 0, 0, 1))
+        self.layout.add_widget(self.feedback_label)
+
+        self.add_widget(self.layout)
+
+        self.current_cefr_level = "A1"
         self.current_sub_level = 1
-        self.update_sub_level_label()
-        self.new_word()
-        self.save_progress()
+        self.words = []
+        self.current_word_index = 0
+        self.correct_answers = 0
+        self.target_lang = "ru"
 
-    def new_word(self):
-        """Загружает новое слово и запускает таймер."""
-        self.attempts = 3
-        self.time_left = self.timer_duration
-        word_data = self.get_random_word()
-        self.word = word_data["word"]
-        self.correct_word = word_data["translations"].get(self.target_lang, self.word) if self.target_lang != "en" else self.word
-        self.definition_label.text = word_data["definitions"].get(self.target_lang, "Definition not available")
-        self.message_label.text = ""
-        self.answer_input.text = ""
-        self.check_button.text = "Check Answer"
-        self.check_button.bind(on_press=self.check_answer)
-        if self.timer_event:
-            self.timer_event.cancel()
-        self.timer_event = Clock.schedule_interval(self.update_timer, 1)
+    def setup_game(self, cefr_level, sub_level):
+        try:
+            self.current_cefr_level = cefr_level
+            self.current_sub_level = sub_level
+            self.words = WORD_DATABASE[cefr_level][str(sub_level)]["words"]
+            random.shuffle(self.words)
+            self.current_word_index = 0
+            self.correct_answers = 0
+            self.show_next_word()
+            logger.info(f"Игра настроена для {cefr_level}, подуровень {sub_level}")
+        except KeyError as e:
+            logger.error(f"Ошибка в структуре базы данных: {e}")
+            self.definition_label.text = "Ошибка: уровень или подуровень не найден"
+            self.input_layout.clear_widgets()
 
-    def update_timer(self, dt):
-        """Обновляет таймер."""
-        self.time_left -= 1
-        if self.time_left <= 0:
-            self.attempts = 0
-            self.message_label.text = f"Time's up! Word was: {self.correct_word} ({self.word})"
-            self.check_button.text = "Next Word"
-            self.check_button.bind(on_press=lambda x: self.new_word())
-            self.timer_event.cancel()
-        self.update_status()
+    def show_next_word(self):
+        if self.current_word_index < len(self.words):
+            word_data = self.words[self.current_word_index]
+            self.progress_label.text = f"Слово {self.current_word_index + 1}/{len(self.words)}"
+            self.definition_label.text = word_data["definitions"][self.target_lang]
+            self.answer_input.text = ""
+            self.feedback_label.text = ""
+            self.feedback_label.color = (0, 0, 0, 1)  # Сброс цвета на чёрный
+            self.check_button.text = "Проверить"
+            self.check_button.on_press = self.check_answer  # Прямая привязка без bind/unbind
+            logger.debug(f"Показ слова {self.current_word_index + 1}")
+        else:
+            self.show_results()
 
     def check_answer(self, *args):
-        """Проверяет ответ пользователя."""
         user_answer = self.answer_input.text.strip().lower()
-        if user_answer == self.correct_word.lower():
-            self.score += 1
-            self.message_label.text = f"Correct! ({self.correct_word} = {self.word})"
-            self.check_button.text = "Next Word"
-            self.check_button.bind(on_press=lambda x: self.new_word())
-            self.timer_event.cancel()
-            # Помечаем слово как завершённое
-            cefr_level = self.current_cefr_level
-            sub_level = str(self.current_sub_level)
-            if cefr_level not in self.completed_words:
-                self.completed_words[cefr_level] = {}
-            if sub_level not in self.completed_words[cefr_level]:
-                self.completed_words[cefr_level][sub_level] = []
-            self.completed_words[cefr_level][sub_level].append(self.word)
-            self.save_progress()
-        else:
-            self.attempts -= 1
-            if self.attempts > 0:
-                self.message_label.text = "Incorrect. Try again!"
-            else:
-                self.message_label.text = f"No attempts left. Word was: {self.correct_word} ({self.word})"
-                self.check_button.text = "Next Word"
-                self.check_button.bind(on_press=lambda x: self.new_word())
-                self.timer_event.cancel()
-        self.update_status()
+        correct_answer = self.words[self.current_word_index]["translations"][self.target_lang].lower()
 
-    def update_status(self):
-        """Обновляет статус."""
-        self.status_label.text = f"Score: {self.score} | Attempts: {self.attempts} | Time: {self.time_left}"
+        if user_answer == correct_answer:
+            self.feedback_label.text = "✓"
+            self.feedback_label.color = (0, 1, 0, 1)  # Зелёный
+            self.correct_answers += 1
+            logger.debug(f"Правильный ответ: {correct_answer}")
+        else:
+            self.feedback_label.text = f"Ответ: {correct_answer}"
+            self.feedback_label.color = (1, 0, 0, 1)  # Красный
+            logger.debug(f"Неправильный ответ: {user_answer}, правильный: {correct_answer}")
+
+        self.check_button.text = "Дальше"
+        self.check_button.on_press = self.next_word  # Прямая привязка к next_word
+
+    def next_word(self, *args):
+        self.current_word_index += 1
+        self.show_next_word()
+
+    def show_results(self):
+        stars = self.calculate_stars()
+        self.definition_label.text = f"Подуровень пройден!\nЗвёзд: {stars}"
+        self.input_layout.clear_widgets()
+        self.feedback_label.text = ""
+        self.progress_label.text = ""
+
+        map_screen = self.manager.get_screen("map")
+        if self.current_cefr_level not in map_screen.completed_sub_levels:
+            map_screen.completed_sub_levels[self.current_cefr_level] = {}
+        map_screen.completed_sub_levels[self.current_cefr_level][str(self.current_sub_level)] = stars
+        map_screen.save_progress()
+        map_screen.update_map()
+
+        self.layout.add_widget(Button(text="Вернуться к карте", font_size=20,
+                                      background_color=(0.2, 0.6, 1, 1), color=(1, 1, 1, 1),
+                                      size_hint=(0.8, 0.2), pos_hint={'center_x': 0.5},
+                                      on_press=self.go_to_map))
+        logger.info(f"Результат: {stars} звёзд")
+
+    def calculate_stars(self):
+        percentage = (self.correct_answers / len(self.words)) * 100
+        if percentage == 100:
+            return 3
+        elif percentage >= 80:
+            return 2
+        elif percentage >= 50:
+            return 1
+        return 0
+
+    def go_to_map(self, *args):
+        logger.debug("Возврат на карту")
+        self.manager.current = "map"
+
 
 class WordGameApp(App):
     def build(self):
-        return WordGame()
+        logger.debug("Создание приложения")
+        sm = ScreenManager()
+        sm.add_widget(MainMenuScreen(name="main_menu"))
+        sm.add_widget(MapScreen(name="map"))
+        sm.add_widget(GameScreen(name="game"))
+        return sm
+
 
 if __name__ == "__main__":
+    logger.info("Запуск приложения")
     WordGameApp().run()
