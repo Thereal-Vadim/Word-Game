@@ -1,14 +1,22 @@
 #:kivy 2.3.1
 
 <Button>:
-    background_normal: ''
-    background_color: [0.2, 0.4, 0.8, 0.9]  # Мягкий синий
+    background_normal: 'button_normal.png'
+    background_disabled_normal: 'button_disabled.png'
     color: 1, 1, 1, 1  # Белый текст
+    font_name: 'SFPro'
 
 <TextInput>:
     background_normal: ''
     background_color: 0.9, 0.9, 0.9, 0.9  # Светло-серый фон
+    font_name: 'SFPro'
 
-<Button>:
-    # Отдельный стиль для заблокированных кнопок на карте
-    background_color: [0.8, 0.8, 0.8, 0.9] if self.disabled else [0.2, 0.4, 0.8, 0.9]
+<Label>:
+    font_name: 'SFPro'
+
+<Spinner>:
+    font_name: 'SFPro'
+
+<ProgressBar>:
+    background_color: 0.8, 0.8, 0.8, 1  # Серый фон
+    color: 0, 0.8, 0, 1  # Зелёный цвет заполнения
