@@ -1,22 +1,453 @@
-#:kivy 2.3.1
+#:kivy 2.0.0
 
-<Button>:
-    background_normal: 'button_normal.png'
-    background_disabled_normal: 'button_disabled.png'
-    color: 1, 1, 1, 1  # Белый текст
-    font_name: 'SFPro'
+<WelcomeScreen>:
+    BoxLayout:
+        orientation: 'vertical'
+        padding: [50, 0, 50, 50]
+        spacing: 60  # Увеличиваем отступы между элементами
+        canvas.before:
+            Color:
+                rgba: 1, 1, 1, 1  # #FFFFFF
+            Rectangle:
+                pos: self.pos
+                size: self.size
 
-<TextInput>:
-    background_normal: ''
-    background_color: 0.9, 0.9, 0.9, 0.9  # Светло-серый фон
-    font_name: 'SFPro'
+        Widget:  # Пустой виджет для смещения элементов вниз
+            size_hint: 1, 0.2  # Увеличиваем высоту пустого пространства
 
-<Label>:
-    font_name: 'SFPro'
+        Label:
+            text: "Как тебя зовут?"
+            font_size: 40
+            font_name: 'SFProTextLight'
+            color: 0, 0, 0, 1  # #000000
+            size_hint: 1, None
+            height: 50
+            pos_hint: {'top': 0.73}  # 236 пикселей от верха (1 - 236/874)
 
-<Spinner>:
-    font_name: 'SFPro'
+        TextInput:
+            id: name_input
+            hint_text: "имя"
+            font_size: 24  # Увеличиваем размер шрифта
+            font_name: 'SFProTextLight'
+            multiline: False
+            size_hint: 0.9, None
+            height: 70  # Увеличиваем высоту поля ввода
+            pos_hint: {'center_x': 0.5}
+            background_color: 249/255, 249/255, 249/255, 1  # #F9F9F9
+            foreground_color: 0, 0, 0, 1  # #000000
+            hint_text_color: 213/255, 204/255, 178/255, 0.5  # #D5CCB2 с прозрачностью 50%
+            padding: [15, 15, 15, 15]  # Увеличиваем внутренние отступы
+            canvas.before:
+                Color:
+                    rgba: 213/255, 204/255, 178/255, 1  # #D5CCB2 для обводки
+                Line:
+                    rounded_rectangle: (self.x, self.y, self.width, self.height, 15)  # Скругление 15px
+                    width: 1  # Толщина обводки
 
-<ProgressBar>:
-    background_color: 0.8, 0.8, 0.8, 1  # Серый фон
-    color: 0, 0.8, 0, 1  # Зелёный цвет заполнения
+        Button:
+            text: "Продолжить"
+            font_size: 24
+            font_name: 'SFProTextMedium'
+            size_hint: 0.9, None
+            height: 80  # Увеличиваем высоту кнопки
+            pos_hint: {'center_x': 0.5}
+            background_color: 0, 0, 0, 0  # Отключаем стандартный фон
+            color: 249/255, 249/255, 249/255, 1  # #F9F9F9 для текста
+            canvas.before:
+                Color:
+                    rgba: 213/255, 204/255, 178/255, 1  # #D5CCB2 для фона кнопки
+                RoundedRectangle:
+                    pos: self.pos
+                    size: self.size
+                    radius: [100]  # Скругление 100px
+            on_press: root.save_name_and_proceed()
+
+<MainMenuScreen>:
+    BoxLayout:
+        orientation: 'vertical'
+        padding: [20, 50, 20, 20]
+        spacing: 20
+        canvas.before:
+            Color:
+                rgba: 1, 1, 1, 1  # #FFFFFF
+            Rectangle:
+                pos: self.pos
+                size: self.size
+
+        Label:
+            id: greeting_label
+            text: "Привет, Пользователь!"
+            font_size: 36
+            font_name: 'SFPro'
+            color: 0, 0, 0, 1  # #000000
+            size_hint: 1, 0.1
+
+        BoxLayout:
+            size_hint: 1, 0.1
+            spacing: 10
+
+            Button:
+                id: today_button
+                text: "Сегодня"
+                font_size: 20
+                font_name: 'SFPro'
+                background_color: 1, 87/255, 0, 1  # #FF5700
+                color: 1, 1, 1, 1  # #FFFFFF
+                size_hint: 0.5, 1
+                background_normal: ''
+                background_down: ''
+                on_press: root.show_today()
+
+            Button:
+                id: tasks_button
+                text: "Задания"
+                font_size: 20
+                font_name: 'SFPro'
+                background_color: 249/255, 249/255, 249/255, 1  # #F9F9F9
+                color: 0, 0, 0, 1  # #000000
+                size_hint: 0.5, 1
+                background_normal: ''
+                background_down: ''
+                on_press: root.show_tasks()
+
+        BoxLayout:
+            id: content_layout
+            orientation: 'vertical'
+            size_hint: 1, 0.6
+            spacing: 20
+
+        BoxLayout:
+            id: menu_layout
+            size_hint: 1, 0.1
+            spacing: 20
+            padding: [0, 0, 0, 10]
+
+            Button:
+                id: home_button
+                background_normal: 'icons/home.png'
+                background_down: 'icons/home.png'
+                background_color: 0, 0, 0, 0
+                size_hint: 0.33, 1
+                on_press: root.go_to_main()
+
+            Button:
+                id: dictionary_button
+                background_normal: 'icons/book.png'
+                background_down: 'icons/book.png'
+                background_color: 0, 0, 0, 0
+                size_hint: 0.33, 1
+                on_press: root.go_to_dictionary()
+
+            Button:
+                id: settings_button
+                background_normal: 'icons/settings.png'
+                background_down: 'icons/settings.png'
+                background_color: 0, 0, 0, 0
+                size_hint: 0.33, 1
+                on_press: root.go_to_settings()
+
+<MapScreen>:
+    BoxLayout:
+        id: layout
+        orientation: "vertical"
+        padding: 20
+        spacing: 20
+        canvas.before:
+            Color:
+                rgba: 1, 1, 1, 1  # #FFFFFF
+            Rectangle:
+                pos: self.pos
+                size: self.size
+
+        Label:
+            id: title_label
+            text: "Карта уровней"
+            font_size: 36
+            font_name: 'SFPro'
+            color: 0, 0, 0, 1  # #000000
+
+        GridLayout:
+            id: map_layout
+            cols: 5
+            spacing: 10
+            size_hint: 1, 0.8
+
+        Button:
+            id: back_button
+            text: "Назад"
+            font_size: 20
+            font_name: 'SFPro'
+            size_hint: 1, 0.1
+            background_color: 1, 87/255, 0, 1  # #FF5700
+            color: 1, 1, 1, 1  # #FFFFFF
+            background_normal: ''
+            background_down: ''
+            on_press: root.go_back()
+
+<DictionaryScreen>:
+    BoxLayout:
+        orientation: "vertical"
+        padding: 20
+        spacing: 10
+        canvas.before:
+            Color:
+                rgba: 1, 1, 1, 1  # #FFFFFF
+            Rectangle:
+                pos: self.pos
+                size: self.size
+
+        Label:
+            id: title_label
+            text: "Словарь"
+            font_size: 36
+            font_name: 'SFPro'
+            color: 0, 0, 0, 1  # #000000
+
+        BoxLayout:
+            id: filter_layout
+            size_hint: 1, 0.1
+            spacing: 10
+
+            Spinner:
+                id: sub_level_spinner
+                text: "Все подуровни"
+                values: ["Все подуровни"] + [f"Подуровень {i}" for i in range(1, 11)]
+                size_hint: 0.5, 1
+                font_name: 'SFPro'
+                background_color: 249/255, 249/255, 249/255, 1  # #F9F9F9
+                color: 0, 0, 0, 1  # #000000
+                background_normal: ''
+                background_down: ''
+                on_text: root.update_word_list()
+
+            Label:
+                id: filter_label
+                text: "Только сложные"
+                font_size: 16
+                font_name: 'SFPro'
+                color: 0, 0, 0, 1  # #000000
+
+            CheckBox:
+                id: difficult_only_checkbox
+                size_hint: 0.1, 1
+                on_active: root.update_word_list()
+
+        ScrollView:
+            size_hint: 1, 0.7
+            GridLayout:
+                id: word_list
+                cols: 1
+                spacing: 10
+                size_hint_y: None
+                height: self.minimum_height
+
+        Button:
+            id: back_button
+            text: "Назад"
+            font_size: 20
+            font_name: 'SFPro'
+            size_hint: 1, 0.1
+            background_color: 1, 87/255, 0, 1  # #FF5700
+            color: 1, 1, 1, 1  # #FFFFFF
+            background_normal: ''
+            background_down: ''
+            on_press: root.go_back()
+
+<SettingsScreen>:
+    BoxLayout:
+        orientation: "vertical"
+        padding: 20
+        spacing: 20
+        canvas.before:
+            Color:
+                rgba: 1, 1, 1, 1  # #FFFFFF
+            Rectangle:
+                pos: self.pos
+                size: self.size
+
+        Label:
+            id: title_label
+            text: "Настройки"
+            font_size: 36
+            font_name: 'SFPro'
+            color: 0, 0, 0, 1  # #000000
+
+        BoxLayout:
+            size_hint: 1, 0.1
+            spacing: 10
+            Label:
+                id: timer_label
+                text: "Время на слово (сек):"
+                font_size: 20
+                font_name: 'SFPro'
+                color: 0, 0, 0, 1  # #000000
+            Spinner:
+                id: timer_spinner
+                text: "30"
+                values: ["15", "30", "45"]
+                size_hint: 0.3, 1
+                font_name: 'SFPro'
+                background_color: 249/255, 249/255, 249/255, 1  # #F9F9F9
+                color: 0, 0, 0, 1  # #000000
+                background_normal: ''
+                background_down: ''
+                on_text: root.update_timer_setting(self, self.text)
+
+        BoxLayout:
+            size_hint: 1, 0.1
+            spacing: 10
+            Label:
+                id: language_label
+                text: "Язык:"
+                font_size: 20
+                font_name: 'SFPro'
+                color: 0, 0, 0, 1  # #000000
+            Spinner:
+                id: language_spinner
+                text: "ru"
+                values: ["ru", "en"]
+                size_hint: 0.3, 1
+                font_name: 'SFPro'
+                background_color: 249/255, 249/255, 249/255, 1  # #F9F9F9
+                color: 0, 0, 0, 1  # #000000
+                background_normal: ''
+                background_down: ''
+                on_text: root.update_language_setting(self, self.text)
+
+        BoxLayout:
+            size_hint: 1, 0.1
+            spacing: 10
+            Label:
+                id: sound_label
+                text: "Звук:"
+                font_size: 20
+                font_name: 'SFPro'
+                color: 0, 0, 0, 1  # #000000
+            CheckBox:
+                id: sound_checkbox
+                active: True
+                on_active: root.update_sound_setting(self, self.active)
+
+        BoxLayout:
+            size_hint: 1, 0.1
+            spacing: 10
+            Label:
+                id: theme_label
+                text: "Тема:"
+                font_size: 20
+                font_name: 'SFPro'
+                color: 0, 0, 0, 1  # #000000
+            Spinner:
+                id: theme_spinner
+                text: "light"
+                values: ["light", "dark"]
+                size_hint: 0.3, 1
+                font_name: 'SFPro'
+                background_color: 249/255, 249/255, 249/255, 1  # #F9F9F9
+                color: 0, 0, 0, 1  # #000000
+                background_normal: ''
+                background_down: ''
+                on_text: root.update_theme_setting(self, self.text)
+
+        Button:
+            id: back_button
+            text: "Назад"
+            font_size: 20
+            font_name: 'SFPro'
+            size_hint: 1, 0.1
+            background_color: 1, 87/255, 0, 1  # #FF5700
+            color: 1, 1, 1, 1  # #FFFFFF
+            background_normal: ''
+            background_down: ''
+            on_press: root.go_back()
+
+<GameScreen>:
+    BoxLayout:
+        id: layout
+        orientation: "vertical"
+        padding: 20
+        spacing: 20
+        canvas.before:
+            Color:
+                rgba: 1, 1, 1, 1  # #FFFFFF
+            Rectangle:
+                pos: self.pos
+                size: self.size
+
+        ProgressBar:
+            id: progress_bar
+            max: 100
+            value: 0
+            size_hint: 1, 0.1
+
+        BoxLayout:
+            id: top_layout
+            size_hint: 1, 0.1
+            spacing: 10
+            Label:
+                id: score_label
+                text: "Очки: 0"
+                font_size: 20
+                font_name: 'SFPro'
+                color: 0, 0, 0, 1  # #000000
+            Label:
+                id: progress_label
+                text: "Слово 0/0"
+                font_size: 20
+                font_name: 'SFPro'
+                color: 0, 0, 0, 1  # #000000
+            Label:
+                id: timer_label
+                text: "30"
+                font_size: 20
+                font_name: 'SFPro'
+                color: 0, 0, 0, 1  # #000000
+
+        Label:
+            id: definition_label
+            text: ""
+            font_size: 32
+            font_name: 'SFPro'
+            color: 0, 0, 0, 1  # #000000
+            halign: "center"
+            text_size: 350, None
+
+        BoxLayout:
+            id: input_layout
+            size_hint: 1, 0.2
+            spacing: 10
+            TextInput:
+                id: answer_input
+                hint_text: "Введи слово"
+                font_size: 20
+                font_name: 'SFPro'
+                multiline: False
+                background_color: 249/255, 249/255, 249/255, 1  # #F9F9F9
+                foreground_color: 0, 0, 0, 1  # #000000
+            Button:
+                id: hint_button
+                text: "Подсказка"
+                font_size: 20
+                font_name: 'SFPro'
+                background_color: 1, 87/255, 0, 1  # #FF5700
+                color: 1, 1, 1, 1  # #FFFFFF
+                background_normal: ''
+                background_down: ''
+                on_press: root.show_hint()
+            Button:
+                id: check_button
+                text: "Проверить"
+                font_size: 20
+                font_name: 'SFPro'
+                background_color: 1, 87/255, 0, 1  # #FF5700
+                color: 1, 1, 1, 1  # #FFFFFF
+                background_normal: ''
+                background_down: ''
+                on_press: root.check_answer()
+
+        Label:
+            id: feedback_label
+            text: ""
+            font_size: 24
+            font_name: 'SFPro'
+            color: 0, 0, 0, 1  # #000000
